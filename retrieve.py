@@ -1,20 +1,10 @@
-#! /home/nfaggian/anaconda/envs/python-devel/bin/python
+#! /home/nfaggian/work/anaconda/envs/python-devel/bin/python
 
-import pymongo
 import xmlrpc.client
 import datetime
-
-from pymongo import MongoClient
-
-def json_map(data):
-    """
-    Forms mongo friendly documents.
-    """
-    json_data = {}
-    for classifier, entries in data.items():
-       json_data[classifier.replace('.','_')] = [{'package':p, 'version':v} for p, v in entries]
-    return json_data
-
+import json
+import os
+import gzip
 
 def collect_pypi_data():
     """
@@ -46,22 +36,29 @@ def collect_pypi_data():
         python_three[classifier] = rclient.browse([classifier])
 
     return {datetime.datetime.now().strftime('%Y-%m-%dT%H:%M:%S'):
-         {'python': json_map(python),
-          'python_two': json_map(python_two),
-          'python_three': json_map(python_three)}}
+         {'python': python,
+          'python_two': python_two,
+          'python_three': python_three}}
 
 
-def write_pypi_data(document):
+def write_pypi_data(document, prefix='/home/nfaggian/data'):
     """
     Write data to the mongo database.
     """
 
-    with MongoClient() as mclient:
+    filename = 'pypi_{}.json'.format(
+    datetime.datetime.now().strftime('%Y-%m-%dT%H:%M:%S'))
+    
+    # Create the json file
+    with open('{}/{}'.format(prefix, filename), 'w') as f:
+        json.dump(document, f, ensure_ascii=True)
+    
+    # Create the compressed json file
+    with open('{}/{}'.format(prefix, filename), 'rb') as f: 
+        with gzip.open('{}/{}.gz'.format(prefix, filename),'wb') as gzf: 
+            gzf.write(f.read())
 
-        db = mclient.pypi
-        collection = db.python_stats
-        collection.insert(document)
-
+    os.unlink('{}/{}'.format(prefix, filename))   
 
 if __name__ == "__main__":
 
